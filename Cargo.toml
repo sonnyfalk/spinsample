@@ -5,3 +5,4 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4.5.29", features = ["derive"] }
+remoteprocess = { version = "0.5.0", features = ["unwind"] }
