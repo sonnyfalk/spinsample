@@ -11,10 +11,17 @@ struct RawThreadSample {
     _backtrace: Vec<u64>,
 }
 
+#[derive(Debug)]
+pub enum Error {
+    OpenProcessFailed(remoteprocess::Error),
+}
+
 impl ProcessSample {
-    pub fn profile(pid: Pid) -> Option<ProcessSample> {
-        let process = remoteprocess::Process::new(pid).ok()?;
-        let unwinder = process.unwinder().ok()?;
+    /// Sample all the threads of the specified process every 10ms.
+    /// It currently takes up to 500 samples before returning.  
+    pub fn profile(pid: Pid) -> Result<ProcessSample, Error> {
+        let process = remoteprocess::Process::new(pid).map_err(Error::OpenProcessFailed)?;
+        let unwinder = process.unwinder().map_err(Error::OpenProcessFailed)?;
 
         println!(
             "Sampling process: {} - {}",
@@ -32,9 +39,12 @@ impl ProcessSample {
 
         println!("Raw thread samples: {}", samples.len());
 
-        None
+        Ok(ProcessSample {
+            _threads: Vec::new(),
+        })
     }
 
+    /// Take a backtrace snapshot of all the threads in the specified process.
     fn snapshot(
         process: &remoteprocess::Process,
         unwinder: &remoteprocess::Unwinder,
@@ -60,5 +70,25 @@ impl ProcessSample {
         }
 
         Some(snapshot)
+    }
+}
+
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::OpenProcessFailed(inner_error) => Some(inner_error),
+        }
+    }
+}
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self::OpenProcessFailed(inner_error) => write!(
+                f,
+                "unable to open the specified process for sampling: {}",
+                inner_error
+            ),
+        }
     }
 }

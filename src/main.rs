@@ -1,4 +1,5 @@
 use clap::Parser;
+use std::process::ExitCode;
 
 mod sampler;
 use sampler::*;
@@ -9,9 +10,17 @@ struct Options {
     pid: Pid,
 }
 
-fn main() {
+fn main() -> ExitCode {
     let options = Options::parse();
-    let _process_sample = ProcessSample::profile(options.pid);
 
-    println!("pid: {}", options.pid);
+    match ProcessSample::profile(options.pid) {
+        Ok(_process_sample) => {
+            println!("Done");
+            ExitCode::SUCCESS
+        }
+        Err(error) => {
+            eprintln!("Failed to sample pid {} - {}", options.pid, error);
+            ExitCode::FAILURE
+        }
+    }
 }
