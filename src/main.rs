@@ -13,7 +13,7 @@ struct Options {
 fn main() -> ExitCode {
     let options = Options::parse();
 
-    match ProcessSample::profile(options.pid) {
+    match profile(options.pid) {
         Ok(process_sample) => {
             println!("{:#?}", process_sample);
             ExitCode::SUCCESS
