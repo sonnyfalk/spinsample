@@ -3,7 +3,7 @@ pub type Pid = remoteprocess::Pid;
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct ProcessSample {
-    _threads: Vec<ThreadSample>,
+    threads: Vec<ThreadSample>,
 }
 
 #[allow(dead_code)]
@@ -25,8 +25,8 @@ pub struct SampleNode {
 #[allow(dead_code)]
 #[derive(Debug)]
 struct RawThreadSample {
-    _thread_id: remoteprocess::Tid,
-    _backtrace: Vec<u64>,
+    thread_id: remoteprocess::Tid,
+    backtrace: Vec<u64>,
 }
 
 #[derive(Debug)]
@@ -47,19 +47,33 @@ impl ProcessSample {
             process.exe().unwrap_or("{unknown}".to_string())
         );
 
-        let samples: Vec<RawThreadSample> = (0..500).fold(Vec::new(), |mut samples, _| {
+        let mut raw_samples = (0..500).fold(Vec::new(), |mut raw_samples, _| {
             if let Some(snapshot) = Self::snapshot(&process, &unwinder).as_mut() {
-                samples.append(snapshot);
+                raw_samples.append(snapshot);
             }
             std::thread::sleep(std::time::Duration::from_millis(10));
-            samples
+            raw_samples
         });
 
-        println!("Raw thread samples: {}", samples.len());
+        println!("Raw thread samples: {}", raw_samples.len());
 
-        Ok(ProcessSample {
-            _threads: Vec::new(),
-        })
+        raw_samples.sort_by(|a, b| a.thread_id.cmp(&b.thread_id));
+        let threads = raw_samples
+            .chunk_by(|a, b| a.thread_id == b.thread_id)
+            .map(|raw_thread_samples| {
+                let thread_id = raw_thread_samples
+                    .first()
+                    .map(|raw_sample| raw_sample.thread_id)
+                    .unwrap();
+                let mut thread_sample = ThreadSample::new(thread_id);
+                for raw_sample in raw_thread_samples {
+                    thread_sample.add_backtrace(raw_sample.backtrace.iter().rev());
+                }
+                thread_sample
+            })
+            .collect();
+
+        Ok(ProcessSample { threads })
     }
 
     /// Take a backtrace snapshot of all the threads in the specified process.
@@ -74,16 +88,16 @@ impl ProcessSample {
             let Ok(_lock) = thread.lock() else {
                 continue;
             };
-            let Ok(_thread_id) = thread.id() else {
+            let Ok(thread_id) = thread.id() else {
                 continue;
             };
             let Ok(cursor) = unwinder.cursor(&thread) else {
                 continue;
             };
-            let _backtrace: Vec<u64> = cursor.flat_map(Result::ok).collect();
+            let backtrace: Vec<u64> = cursor.flat_map(Result::ok).collect();
             snapshot.push(RawThreadSample {
-                _thread_id,
-                _backtrace,
+                thread_id,
+                backtrace,
             });
         }
 
@@ -100,7 +114,7 @@ impl ThreadSample {
         }
     }
 
-    fn add_backtrace(&mut self, backtrace: std::slice::Iter<u64>) {
+    fn add_backtrace<'a>(&mut self, backtrace: impl std::iter::Iterator<Item = &'a u64>) {
         self.root_node.increment_count();
         self.root_node.add_backtrace(backtrace);
     }
@@ -134,7 +148,7 @@ impl SampleNode {
         self.count += 1;
     }
 
-    fn add_backtrace(&mut self, mut backtrace: std::slice::Iter<u64>) {
+    fn add_backtrace<'a>(&mut self, mut backtrace: impl std::iter::Iterator<Item = &'a u64>) {
         let Some(&address) = backtrace.next() else {
             return;
         };

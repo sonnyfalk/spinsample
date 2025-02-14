@@ -14,8 +14,8 @@ fn main() -> ExitCode {
     let options = Options::parse();
 
     match ProcessSample::profile(options.pid) {
-        Ok(_process_sample) => {
-            println!("Done");
+        Ok(process_sample) => {
+            println!("{:#?}", process_sample);
             ExitCode::SUCCESS
         }
         Err(error) => {
