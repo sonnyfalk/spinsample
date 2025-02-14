@@ -25,7 +25,6 @@ impl SampleNode {
         }
     }
 
-    #[allow(dead_code)]
     pub fn is_root_node(&self) -> bool {
         self.level == 0 && self.address == 0
     }
@@ -47,6 +46,24 @@ impl SampleNode {
             node.add_backtrace(backtrace);
             self.children.push(node);
         }
+    }
+}
+
+impl std::fmt::Display for SampleNode {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        if !self.is_root_node() {
+            writeln!(
+                f,
+                "{}{} - {}",
+                " ".repeat(self.level as usize),
+                self.count,
+                self.address
+            )?;
+        }
+        for node in &self.children {
+            node.fmt(f)?;
+        }
+        Ok(())
     }
 }
 

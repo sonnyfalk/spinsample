@@ -15,7 +15,7 @@ fn main() -> ExitCode {
 
     match profile(options.pid) {
         Ok(process_sample) => {
-            println!("{:#?}", process_sample);
+            println!("{}", process_sample);
             ExitCode::SUCCESS
         }
         Err(error) => {

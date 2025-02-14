@@ -1,6 +1,5 @@
 use super::*;
 
-#[allow(dead_code)]
 #[derive(Debug)]
 pub struct ThreadSample {
     thread_id: remoteprocess::Tid,
@@ -20,6 +19,13 @@ impl ThreadSample {
     pub fn add_backtrace<'a>(&mut self, backtrace: impl std::iter::Iterator<Item = &'a u64>) {
         self.root_node.increment_count();
         self.root_node.add_backtrace(backtrace);
+    }
+}
+
+impl std::fmt::Display for ThreadSample {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        writeln!(f, "Thread {}", self.thread_id)?;
+        self.root_node.fmt(f)
     }
 }
 
