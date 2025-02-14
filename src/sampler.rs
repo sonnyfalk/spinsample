@@ -1,5 +1,6 @@
 mod error;
 mod process_sample;
+mod raw_sample;
 mod sample_node;
 mod thread_sample;
 
@@ -10,6 +11,8 @@ pub use thread_sample::ThreadSample;
 
 pub type Pid = remoteprocess::Pid;
 pub type Tid = remoteprocess::Tid;
+
+use raw_sample::RawSample;
 
 /// Sample all the threads of the specified process every 10ms.
 /// It currently takes up to 500 samples before returning.  
@@ -37,17 +40,17 @@ pub fn profile(pid: Pid) -> Result<ProcessSample, Error> {
 
     // Sort all raw samples by thread, then iterate through them grouped by thread
     // to produce the final sample tree for each thread.
-    raw_samples.sort_by(|a, b| a.thread_id.cmp(&b.thread_id));
+    raw_samples.sort_by(|a, b| a.get_thread_id().cmp(&b.get_thread_id()));
     let threads = raw_samples
-        .chunk_by(|a, b| a.thread_id == b.thread_id)
+        .chunk_by(|a, b| a.get_thread_id() == b.get_thread_id())
         .map(|raw_thread_samples| {
             let thread_id = raw_thread_samples
                 .first()
-                .map(|raw_sample| raw_sample.thread_id)
+                .map(|raw_sample| raw_sample.get_thread_id())
                 .unwrap();
             let mut thread_sample = ThreadSample::new(thread_id);
             for raw_sample in raw_thread_samples {
-                thread_sample.add_backtrace(raw_sample.backtrace.iter().rev());
+                thread_sample.add_backtrace(raw_sample.get_backtrace().iter().rev());
             }
             thread_sample
         })
@@ -56,17 +59,11 @@ pub fn profile(pid: Pid) -> Result<ProcessSample, Error> {
     Ok(ProcessSample::new(threads))
 }
 
-#[derive(Debug)]
-struct RawThreadSample {
-    thread_id: Tid,
-    backtrace: Vec<u64>,
-}
-
 /// Take a backtrace snapshot of all the threads in the specified process.
 fn snapshot(
     process: &remoteprocess::Process,
     unwinder: &remoteprocess::Unwinder,
-) -> Option<Vec<RawThreadSample>> {
+) -> Option<Vec<RawSample>> {
     let threads = process.threads().ok()?;
 
     let mut snapshot = Vec::new();
@@ -81,10 +78,7 @@ fn snapshot(
             continue;
         };
         let backtrace: Vec<u64> = cursor.flat_map(Result::ok).collect();
-        snapshot.push(RawThreadSample {
-            thread_id,
-            backtrace,
-        });
+        snapshot.push(RawSample::new(thread_id, backtrace));
     }
 
     Some(snapshot)
