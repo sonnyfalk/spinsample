@@ -2,12 +2,12 @@ use super::*;
 
 #[derive(Debug)]
 pub struct ThreadSample {
-    thread_id: remoteprocess::Tid,
+    thread_id: Tid,
     root_node: SampleNode,
 }
 
 impl ThreadSample {
-    pub fn new(thread_id: remoteprocess::Tid) -> Self {
+    pub fn new(thread_id: Tid) -> Self {
         Self {
             thread_id,
             root_node: SampleNode::root_node(),
@@ -20,12 +20,13 @@ impl ThreadSample {
         self.root_node.increment_count();
         self.root_node.add_backtrace(backtrace);
     }
-}
 
-impl std::fmt::Display for ThreadSample {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        writeln!(f, "Thread {}", self.thread_id)?;
-        self.root_node.fmt(f)
+    pub fn get_thread_id(&self) -> Tid {
+        self.thread_id
+    }
+
+    pub fn get_root_node(&self) -> &SampleNode {
+        &self.root_node
     }
 }
 
@@ -38,7 +39,6 @@ mod tests {
         let thread_sample = ThreadSample::new(1);
 
         assert_eq!(thread_sample.thread_id, 1);
-        assert_eq!(thread_sample.root_node.is_root_node(), true);
         assert_eq!(
             format!("{:?}", thread_sample),
             "ThreadSample { thread_id: 1, root_node: \

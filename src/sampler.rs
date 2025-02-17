@@ -2,11 +2,13 @@ mod error;
 mod process_sample;
 mod raw_sample;
 mod sample_node;
+mod symbol_table;
 mod thread_sample;
 
 pub use error::Error;
 pub use process_sample::ProcessSample;
 pub use sample_node::SampleNode;
+pub use symbol_table::{SymbolInfo, SymbolTable};
 pub use thread_sample::ThreadSample;
 
 pub type Pid = remoteprocess::Pid;
@@ -20,6 +22,7 @@ pub fn profile(pid: Pid) -> Result<ProcessSample, Error> {
     // Attach to the specified process and create a callstack unwinder.
     let process = remoteprocess::Process::new(pid).map_err(Error::OpenProcessFailed)?;
     let unwinder = process.unwinder().map_err(Error::OpenProcessFailed)?;
+    let symbolicator = process.symbolicator().map_err(Error::OpenProcessFailed)?;
 
     println!(
         "Sampling process: {} - {}",
@@ -38,6 +41,17 @@ pub fn profile(pid: Pid) -> Result<ProcessSample, Error> {
 
     println!("Raw thread samples: {}", raw_samples.len());
 
+    println!("Symbolicating...");
+    let symbol_table =
+        raw_samples
+            .iter()
+            .fold(SymbolTable::new(), |mut symbol_table, raw_sample| {
+                symbol_table.symbolicate(raw_sample.get_backtrace(), &symbolicator);
+                symbol_table
+            });
+
+    println!("Building sample tree...");
+
     // Sort all raw samples by thread, then iterate through them grouped by thread
     // to produce the final sample tree for each thread.
     raw_samples.sort_by(|a, b| a.get_thread_id().cmp(&b.get_thread_id()));
@@ -48,6 +62,7 @@ pub fn profile(pid: Pid) -> Result<ProcessSample, Error> {
                 .first()
                 .map(|raw_sample| raw_sample.get_thread_id())
                 .unwrap();
+
             let mut thread_sample = ThreadSample::new(thread_id);
             for raw_sample in raw_thread_samples {
                 thread_sample.add_backtrace(raw_sample.get_backtrace().iter().rev());
@@ -56,7 +71,7 @@ pub fn profile(pid: Pid) -> Result<ProcessSample, Error> {
         })
         .collect();
 
-    Ok(ProcessSample::new(threads))
+    Ok(ProcessSample::new(threads, symbol_table))
 }
 
 /// Take a backtrace snapshot of all the threads in the specified process.

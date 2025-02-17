@@ -25,12 +25,24 @@ impl SampleNode {
         }
     }
 
-    pub fn is_root_node(&self) -> bool {
-        self.level == 0 && self.address == 0
-    }
-
     pub fn increment_count(&mut self) {
         self.count += 1;
+    }
+
+    pub fn get_level(&self) -> u32 {
+        self.level
+    }
+
+    pub fn get_address(&self) -> u64 {
+        self.address
+    }
+
+    pub fn get_count(&self) -> u32 {
+        self.count
+    }
+
+    pub fn get_children(&self) -> &Vec<SampleNode> {
+        &self.children
     }
 
     pub fn add_backtrace<'a>(&mut self, mut backtrace: impl std::iter::Iterator<Item = &'a u64>) {
@@ -49,24 +61,6 @@ impl SampleNode {
     }
 }
 
-impl std::fmt::Display for SampleNode {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        if !self.is_root_node() {
-            writeln!(
-                f,
-                "{}{} - {}",
-                " ".repeat(self.level as usize),
-                self.count,
-                self.address
-            )?;
-        }
-        for node in &self.children {
-            node.fmt(f)?;
-        }
-        Ok(())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -75,7 +69,6 @@ mod tests {
     fn test_empty_node() {
         let node = SampleNode::new(1, 2);
 
-        assert_eq!(node.is_root_node(), false);
         assert_eq!(node.level, 1);
         assert_eq!(node.address, 2);
         assert_eq!(node.count, 1);
@@ -86,7 +79,6 @@ mod tests {
     fn test_root_node() {
         let root_node = SampleNode::root_node();
 
-        assert_eq!(root_node.is_root_node(), true);
         assert_eq!(root_node.count, 0);
         assert_eq!(root_node.address, 0);
         assert_eq!(root_node.children.len(), 0);
@@ -137,6 +129,7 @@ mod tests {
         assert_eq!(node.count, 2);
         assert_eq!(node.children.len(), 0);
     }
+
     #[test]
     fn test_node_backtrace_fork() {
         let mut root_node = SampleNode::root_node();
