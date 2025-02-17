@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 #[derive(Debug)]
 pub struct SymbolTable {
     address_to_symbol_table: std::collections::HashMap<u64, SymbolInfo>,
@@ -6,6 +8,7 @@ pub struct SymbolTable {
 #[derive(Debug, Clone)]
 pub struct SymbolInfo {
     function: Option<String>,
+    module: Option<PathBuf>,
 }
 
 impl SymbolTable {
@@ -27,6 +30,7 @@ impl SymbolTable {
                         *address,
                         SymbolInfo {
                             function: sf.function.clone(),
+                            module: Some(PathBuf::from(&sf.module)),
                         },
                     );
                 });
@@ -40,7 +44,14 @@ impl SymbolTable {
 }
 
 impl SymbolInfo {
-    pub fn get_function(&self) -> Option<&String> {
-        self.function.as_ref()
+    pub fn get_function(&self) -> Option<&str> {
+        self.function.as_ref().map(String::as_str)
+    }
+
+    pub fn get_module_name(&self) -> Option<&str> {
+        self.module
+            .as_ref()
+            .map(|f| f.file_name().map(std::ffi::OsStr::to_str).flatten())
+            .flatten()
     }
 }

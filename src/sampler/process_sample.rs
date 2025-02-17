@@ -30,20 +30,24 @@ impl std::fmt::Display for ProcessSample {
 
 impl ProcessSample {
     fn write_node(&self, node: &SampleNode, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let function_name = self
-            .symbol_table
-            .symbol(node.get_address())
+        let symbol = self.symbol_table.symbol(node.get_address());
+
+        let function_name = symbol
             .map(SymbolInfo::get_function)
             .flatten()
-            .map(String::as_str)
+            .unwrap_or("{unknown}");
+        let module_name = symbol
+            .map(SymbolInfo::get_module_name)
+            .flatten()
             .unwrap_or("{unknown}");
 
         writeln!(
             f,
-            "{}{} - {} at {}",
+            "{}{} - {}  (in {})  [{:#x}]",
             " ".repeat(node.get_level() as usize),
             node.get_count(),
             function_name,
+            module_name,
             node.get_address()
         )?;
         for node in node.get_children() {
