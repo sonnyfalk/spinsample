@@ -1,13 +1,13 @@
 mod error;
 mod process_sample;
 mod raw_sample;
-mod sample_node;
+mod sample_point;
 mod symbol_table;
 mod thread_sample;
 
 pub use error::Error;
 pub use process_sample::ProcessSample;
-pub use sample_node::SampleNode;
+pub use sample_point::SamplePoint;
 pub use symbol_table::{SymbolInfo, SymbolTable};
 pub use thread_sample::ThreadSample;
 

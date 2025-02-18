@@ -5,7 +5,7 @@ use super::*;
 #[derive(Debug)]
 pub struct ThreadSample {
     thread_id: Tid,
-    sample_tree: TreeNode<SampleNode>,
+    sample_tree: TreeNode<SamplePoint>,
 }
 
 impl ThreadSample {
@@ -13,7 +13,7 @@ impl ThreadSample {
         Self {
             thread_id,
             sample_tree: TreeNode {
-                value: SampleNode::root_node(),
+                value: SamplePoint::root_sample(),
                 children: Vec::new(),
             },
         }
@@ -30,13 +30,13 @@ impl ThreadSample {
         add_backtrace(&mut self.sample_tree, backtrace);
     }
 
-    pub fn sample_tree_dfs_iter(&self) -> impl Iterator<Item = &SampleNode> {
+    pub fn sample_tree_dfs_iter(&self) -> impl Iterator<Item = &SamplePoint> {
         self.sample_tree.dfs_preorder_iter()
     }
 }
 
 fn add_backtrace<'a>(
-    node: &mut TreeNode<SampleNode>,
+    node: &mut TreeNode<SamplePoint>,
     mut backtrace: impl Iterator<Item = &'a u64>,
 ) {
     let Some(&address) = backtrace.next() else {
@@ -52,7 +52,7 @@ fn add_backtrace<'a>(
         add_backtrace(node, backtrace);
     } else {
         let mut child_node = TreeNode {
-            value: SampleNode::new(node.value.get_level() + 1, address),
+            value: SamplePoint::new(node.value.get_level() + 1, address),
             children: Vec::new(),
         };
         add_backtrace(&mut child_node, backtrace);
@@ -72,7 +72,7 @@ mod tests {
         assert_eq!(
             format!("{:?}", thread_sample),
             "ThreadSample { thread_id: 1, sample_tree: \
-                TreeNode { value: SampleNode { level: 0, address: 0, count: 0 }, children: [] } }"
+                TreeNode { value: SamplePoint { level: 0, address: 0, count: 0 }, children: [] } }"
         );
     }
 
@@ -85,10 +85,10 @@ mod tests {
         assert_eq!(
             format!("{:?}", thread_sample),
             "ThreadSample { thread_id: 1, sample_tree: \
-                TreeNode { value: SampleNode { level: 0, address: 0, count: 1 }, children: [\
-                    TreeNode { value: SampleNode { level: 1, address: 1, count: 1 }, children: [\
-                        TreeNode { value: SampleNode { level: 2, address: 2, count: 1 }, children: [\
-                            TreeNode { value: SampleNode { level: 3, address: 3, count: 1 }, children: [] }] }] }] } }"
+                TreeNode { value: SamplePoint { level: 0, address: 0, count: 1 }, children: [\
+                    TreeNode { value: SamplePoint { level: 1, address: 1, count: 1 }, children: [\
+                        TreeNode { value: SamplePoint { level: 2, address: 2, count: 1 }, children: [\
+                            TreeNode { value: SamplePoint { level: 3, address: 3, count: 1 }, children: [] }] }] }] } }"
         );
     }
 
@@ -100,9 +100,9 @@ mod tests {
         thread_sample.add_backtrace([1, 2].iter());
 
         assert_eq!(format!("{:?}", thread_sample), "ThreadSample { thread_id: 1, sample_tree: \
-            TreeNode { value: SampleNode { level: 0, address: 0, count: 2 }, children: [\
-                TreeNode { value: SampleNode { level: 1, address: 1, count: 2 }, children: [\
-                    TreeNode { value: SampleNode { level: 2, address: 2, count: 2 }, children: [] }] }] } }");
+            TreeNode { value: SamplePoint { level: 0, address: 0, count: 2 }, children: [\
+                TreeNode { value: SamplePoint { level: 1, address: 1, count: 2 }, children: [\
+                    TreeNode { value: SamplePoint { level: 2, address: 2, count: 2 }, children: [] }] }] } }");
     }
 
     #[test]
@@ -113,9 +113,9 @@ mod tests {
         thread_sample.add_backtrace([1, 3].iter());
 
         assert_eq!(format!("{:?}", thread_sample), "ThreadSample { thread_id: 1, sample_tree: \
-            TreeNode { value: SampleNode { level: 0, address: 0, count: 2 }, children: [\
-                TreeNode { value: SampleNode { level: 1, address: 1, count: 2 }, children: [\
-                    TreeNode { value: SampleNode { level: 2, address: 2, count: 1 }, children: [] }, \
-                    TreeNode { value: SampleNode { level: 2, address: 3, count: 1 }, children: [] }] }] } }");
+            TreeNode { value: SamplePoint { level: 0, address: 0, count: 2 }, children: [\
+                TreeNode { value: SamplePoint { level: 1, address: 1, count: 2 }, children: [\
+                    TreeNode { value: SamplePoint { level: 2, address: 2, count: 1 }, children: [] }, \
+                    TreeNode { value: SamplePoint { level: 2, address: 3, count: 1 }, children: [] }] }] } }");
     }
 }

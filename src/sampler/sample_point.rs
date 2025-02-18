@@ -1,11 +1,11 @@
 #[derive(Debug)]
-pub struct SampleNode {
+pub struct SamplePoint {
     level: u32,
     address: u64,
     count: u32,
 }
 
-impl SampleNode {
+impl SamplePoint {
     pub fn new(level: u32, address: u64) -> Self {
         Self {
             level,
@@ -14,7 +14,7 @@ impl SampleNode {
         }
     }
 
-    pub fn root_node() -> Self {
+    pub fn root_sample() -> Self {
         Self {
             level: 0,
             address: 0,
@@ -44,19 +44,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_empty_node() {
-        let node = SampleNode::new(1, 2);
+    fn test_empty_sample() {
+        let sample = SamplePoint::new(1, 2);
 
-        assert_eq!(node.level, 1);
-        assert_eq!(node.address, 2);
-        assert_eq!(node.count, 1);
+        assert_eq!(sample.level, 1);
+        assert_eq!(sample.address, 2);
+        assert_eq!(sample.count, 1);
     }
 
     #[test]
-    fn test_root_node() {
-        let root_node = SampleNode::root_node();
+    fn test_root_sample() {
+        let root_sample = SamplePoint::root_sample();
 
-        assert_eq!(root_node.count, 0);
-        assert_eq!(root_node.address, 0);
+        assert_eq!(root_sample.count, 0);
+        assert_eq!(root_sample.address, 0);
     }
 }
