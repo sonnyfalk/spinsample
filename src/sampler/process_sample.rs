@@ -20,38 +20,28 @@ impl std::fmt::Display for ProcessSample {
         writeln!(f, "Process")?;
         for thread in &self.threads {
             writeln!(f, "Thread {}", thread.get_thread_id())?;
-            for node in thread.get_root_node().get_children() {
-                self.write_node(node, f)?;
+            for node in thread.sample_tree_dfs_iter() {
+                let symbol = self.symbol_table.symbol(node.get_address());
+
+                let function_name = symbol
+                    .map(SymbolInfo::get_function)
+                    .flatten()
+                    .unwrap_or("{unknown}");
+                let module_name = symbol
+                    .map(SymbolInfo::get_module_name)
+                    .flatten()
+                    .unwrap_or("{unknown}");
+
+                writeln!(
+                    f,
+                    "{}{} - {}  (in {})  [{:#x}]",
+                    " ".repeat(node.get_level() as usize),
+                    node.get_count(),
+                    function_name,
+                    module_name,
+                    node.get_address()
+                )?;
             }
-        }
-        Ok(())
-    }
-}
-
-impl ProcessSample {
-    fn write_node(&self, node: &SampleNode, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let symbol = self.symbol_table.symbol(node.get_address());
-
-        let function_name = symbol
-            .map(SymbolInfo::get_function)
-            .flatten()
-            .unwrap_or("{unknown}");
-        let module_name = symbol
-            .map(SymbolInfo::get_module_name)
-            .flatten()
-            .unwrap_or("{unknown}");
-
-        writeln!(
-            f,
-            "{}{} - {}  (in {})  [{:#x}]",
-            " ".repeat(node.get_level() as usize),
-            node.get_count(),
-            function_name,
-            module_name,
-            node.get_address()
-        )?;
-        for node in node.get_children() {
-            self.write_node(node, f)?;
         }
         Ok(())
     }

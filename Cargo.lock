@@ -594,6 +594,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "remoteprocess",
+ "tree_iterators_rs",
 ]
 
 [[package]]
@@ -607,6 +608,12 @@ name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
+
+[[package]]
+name = "streaming-iterator"
+version = "0.1.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2b2231b7c3057d5e4ad0156fb3dc807d900806020c5ffa3ee6ff2c8c76fb8520"
 
 [[package]]
 name = "strsim"
@@ -623,6 +630,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "tree_iterators_rs"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e50989ae667904ee29d24914509d79dea8ba17a46f57e42a04c8ae54e8397f0d"
+dependencies = [
+ "streaming-iterator",
 ]
 
 [[package]]
