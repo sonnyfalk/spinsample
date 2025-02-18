@@ -31,7 +31,8 @@ impl ThreadSample {
     }
 
     pub fn sample_tree_dfs_iter(&self) -> impl Iterator<Item = &SamplePoint> {
-        self.sample_tree.dfs_preorder_iter()
+        // Provide the DFS iterator and skip the root node since it's not part of the sample trace.
+        self.sample_tree.dfs_preorder_iter().skip(1)
     }
 }
 
