@@ -1,20 +1,20 @@
 mod error;
+mod module_info;
 mod process_sample;
 mod raw_sample;
+mod remoteprocess_ext;
 mod sample_point;
 mod symbol_table;
 mod thread_sample;
 
 pub use error::Error;
+pub use module_info::ModuleInfo;
 pub use process_sample::ProcessSample;
+use raw_sample::RawSample;
+pub use remoteprocess_ext::*;
 pub use sample_point::SamplePoint;
 pub use symbol_table::{SymbolInfo, SymbolTable};
 pub use thread_sample::ThreadSample;
-
-pub type Pid = remoteprocess::Pid;
-pub type Tid = remoteprocess::Tid;
-
-use raw_sample::RawSample;
 
 /// Sample all the threads of the specified process every 10ms.
 /// It currently takes up to 500 samples before returning.  
@@ -71,7 +71,9 @@ pub fn profile(pid: Pid) -> Result<ProcessSample, Error> {
         })
         .collect();
 
-    Ok(ProcessSample::new(threads, symbol_table))
+    let modules = process.loaded_modules();
+
+    Ok(ProcessSample::new(threads, symbol_table, modules))
 }
 
 /// Take a backtrace snapshot of all the threads in the specified process.
