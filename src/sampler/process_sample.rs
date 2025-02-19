@@ -1,7 +1,11 @@
+use std::path::PathBuf;
+
 use super::*;
 
 #[derive(Debug)]
 pub struct ProcessSample {
+    pid: Pid,
+    path: PathBuf,
     threads: Vec<ThreadSample>,
     symbol_table: SymbolTable,
     modules: Vec<ModuleInfo>,
@@ -9,11 +13,15 @@ pub struct ProcessSample {
 
 impl ProcessSample {
     pub fn new(
+        pid: Pid,
+        path: PathBuf,
         threads: Vec<ThreadSample>,
         symbol_table: SymbolTable,
         modules: Vec<ModuleInfo>,
     ) -> Self {
         Self {
+            pid,
+            path,
             threads,
             symbol_table,
             modules,
@@ -23,7 +31,7 @@ impl ProcessSample {
 
 impl std::fmt::Display for ProcessSample {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        writeln!(f, "Process")?;
+        writeln!(f, "Process: {} - {}", self.pid, self.path.to_string_lossy())?;
 
         writeln!(f)?;
         for thread in &self.threads {

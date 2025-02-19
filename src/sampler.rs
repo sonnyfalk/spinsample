@@ -7,6 +7,8 @@ mod sample_point;
 mod symbol_table;
 mod thread_sample;
 
+use std::path::PathBuf;
+
 pub use error::Error;
 pub use module_info::ModuleInfo;
 pub use process_sample::ProcessSample;
@@ -23,11 +25,12 @@ pub fn profile(pid: Pid) -> Result<ProcessSample, Error> {
     let process = remoteprocess::Process::new(pid).map_err(Error::OpenProcessFailed)?;
     let unwinder = process.unwinder().map_err(Error::OpenProcessFailed)?;
     let symbolicator = process.symbolicator().map_err(Error::OpenProcessFailed)?;
+    let process_name = process.exe().ok();
 
     println!(
         "Sampling process: {} - {}",
         pid,
-        process.exe().unwrap_or("{unknown}".to_string())
+        process_name.as_ref().unwrap_or(&String::from("{unknown}"))
     );
 
     // Take backtrace snapshots of all threads in the specified process every 10ms.
@@ -38,8 +41,6 @@ pub fn profile(pid: Pid) -> Result<ProcessSample, Error> {
         std::thread::sleep(std::time::Duration::from_millis(10));
         raw_samples
     });
-
-    println!("Raw thread samples: {}", raw_samples.len());
 
     println!("Symbolicating...");
     let symbol_table =
@@ -73,7 +74,15 @@ pub fn profile(pid: Pid) -> Result<ProcessSample, Error> {
 
     let modules = process.loaded_modules();
 
-    Ok(ProcessSample::new(threads, symbol_table, modules))
+    println!();
+
+    Ok(ProcessSample::new(
+        pid,
+        PathBuf::from(process_name.unwrap_or_default()),
+        threads,
+        symbol_table,
+        modules,
+    ))
 }
 
 /// Take a backtrace snapshot of all the threads in the specified process.
