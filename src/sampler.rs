@@ -1,5 +1,6 @@
 mod error;
 mod module_info;
+mod process_info;
 mod process_sample;
 mod raw_sample;
 mod remoteprocess_ext;
@@ -11,6 +12,7 @@ use std::path::PathBuf;
 
 pub use error::Error;
 pub use module_info::ModuleInfo;
+pub use process_info::ProcessInfo;
 pub use process_sample::ProcessSample;
 use raw_sample::RawSample;
 pub use remoteprocess_ext::*;
@@ -33,6 +35,8 @@ pub fn profile(pid: Pid) -> Result<ProcessSample, Error> {
         process_name.as_ref().unwrap_or(&String::from("{unknown}"))
     );
 
+    let (before_user_time, before_kernel_time) = process.cpu_time();
+
     // Take backtrace snapshots of all threads in the specified process every 10ms.
     let mut raw_samples = (0..500).fold(Vec::new(), |mut raw_samples, _| {
         if let Some(snapshot) = snapshot(&process, &unwinder).as_mut() {
@@ -41,6 +45,8 @@ pub fn profile(pid: Pid) -> Result<ProcessSample, Error> {
         std::thread::sleep(std::time::Duration::from_millis(10));
         raw_samples
     });
+
+    let (after_user_time, after_kernel_time) = process.cpu_time();
 
     println!("Symbolicating...");
     let symbol_table =
@@ -77,11 +83,15 @@ pub fn profile(pid: Pid) -> Result<ProcessSample, Error> {
     println!();
 
     Ok(ProcessSample::new(
-        pid,
-        PathBuf::from(process_name.unwrap_or_default()),
+        ProcessInfo::new(
+            pid,
+            PathBuf::from(process_name.unwrap_or_default()),
+            modules,
+            after_user_time.abs_diff(before_user_time),
+            after_kernel_time.abs_diff(before_kernel_time),
+        ),
         threads,
         symbol_table,
-        modules,
     ))
 }
 

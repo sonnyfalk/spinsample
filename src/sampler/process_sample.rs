@@ -1,37 +1,45 @@
-use std::path::PathBuf;
-
 use super::*;
 
 #[derive(Debug)]
 pub struct ProcessSample {
-    pid: Pid,
-    path: PathBuf,
+    process_info: ProcessInfo,
     threads: Vec<ThreadSample>,
     symbol_table: SymbolTable,
-    modules: Vec<ModuleInfo>,
 }
 
 impl ProcessSample {
     pub fn new(
-        pid: Pid,
-        path: PathBuf,
+        process_info: ProcessInfo,
         threads: Vec<ThreadSample>,
         symbol_table: SymbolTable,
-        modules: Vec<ModuleInfo>,
     ) -> Self {
         Self {
-            pid,
-            path,
+            process_info,
             threads,
             symbol_table,
-            modules,
         }
     }
 }
 
 impl std::fmt::Display for ProcessSample {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        writeln!(f, "Process: {} - {}", self.pid, self.path.to_string_lossy())?;
+        writeln!(
+            f,
+            "Process: {} - {}",
+            self.process_info.pid,
+            self.process_info.path.to_string_lossy()
+        )?;
+
+        let user_cpu_time = self.process_info.user_cpu_time;
+        let kernel_cpu_time = self.process_info.kernel_cpu_time;
+        let total_cpu_time = user_cpu_time + kernel_cpu_time;
+        writeln!(
+            f,
+            "  CPU Time: {:.3}s (user: {:.3}s, kernel: {:.3}s)",
+            total_cpu_time.as_secs_f64(),
+            user_cpu_time.as_secs_f64(),
+            kernel_cpu_time.as_secs_f64()
+        )?;
 
         writeln!(f)?;
         for thread in &self.threads {
@@ -50,7 +58,7 @@ impl std::fmt::Display for ProcessSample {
 
                 writeln!(
                     f,
-                    "{}{} - {}  (in {})  [{:#x}]",
+                    " {}{} - {}  (in {})  [{:#x}]",
                     " ".repeat(sample_point.get_level() as usize),
                     sample_point.get_count(),
                     function_name,
@@ -63,7 +71,7 @@ impl std::fmt::Display for ProcessSample {
         writeln!(f)?;
 
         writeln!(f, "Modules:")?;
-        for module in &self.modules {
+        for module in &self.process_info.modules {
             writeln!(
                 f,
                 "  {:#x} - {:#x}  {:24} {}",
