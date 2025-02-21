@@ -56,10 +56,10 @@ impl ProcessExt for remoteprocess::Process {
         _ = unsafe {
             GetProcessTimes(
                 HANDLE(*self.handle),
-                &raw mut creation_time,
-                &raw mut exit_time,
-                &raw mut kernel_time,
-                &raw mut user_time,
+                &mut creation_time,
+                &mut exit_time,
+                &mut kernel_time,
+                &mut user_time,
             )
         };
 
