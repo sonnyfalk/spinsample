@@ -5,6 +5,5 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4.5.29", features = ["derive"] }
-remoteprocess = { version = "0.5.0", features = ["unwind"] }
 tree_iterators_rs = "2.0.0"
-windows = { version = "0.59.0", features = ["Win32_System_Diagnostics_Debug", "Win32_System_Diagnostics_ToolHelp", "Win32_System_Threading"] }
+windows = { version = "0.59.0", features = ["Win32_System_Diagnostics_Debug", "Win32_System_Diagnostics_ToolHelp", "Win32_System_Kernel", "Win32_System_SystemInformation", "Win32_System_Threading"] }

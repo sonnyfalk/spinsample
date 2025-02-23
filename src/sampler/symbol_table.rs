@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+use super::*;
+
 #[derive(Debug)]
 pub struct SymbolTable {
     address_to_symbol_table: std::collections::HashMap<u64, SymbolInfo>,
@@ -18,22 +20,17 @@ impl SymbolTable {
         }
     }
 
-    pub fn symbolicate(
-        &mut self,
-        backtrace: &Vec<u64>,
-        symbolicator: &remoteprocess::Symbolicator,
-    ) {
+    pub fn symbolicate(&mut self, backtrace: &Vec<u64>, symbolicator: &Symbolicator) {
         for address in backtrace {
             if !self.address_to_symbol_table.contains_key(address) {
-                _ = symbolicator.symbolicate(*address, false, &mut |sf| {
-                    self.address_to_symbol_table.insert(
-                        *address,
-                        SymbolInfo {
-                            function: sf.function.clone(),
-                            module: Some(PathBuf::from(&sf.module)),
-                        },
-                    );
-                });
+                let symbolicated_frame = symbolicator.symbolicate(*address);
+                self.address_to_symbol_table.insert(
+                    *address,
+                    SymbolInfo {
+                        function: symbolicated_frame.function,
+                        module: symbolicated_frame.module.map(PathBuf::from),
+                    },
+                );
             }
         }
     }
