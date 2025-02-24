@@ -43,7 +43,18 @@ impl std::fmt::Display for ProcessSample {
 
         writeln!(f)?;
         for thread in &self.threads {
-            writeln!(f, "Thread {}", thread.get_thread_id())?;
+            let user_cpu_time = thread.get_user_cpu_time();
+            let kernel_cpu_time = thread.get_kernel_cpu_time();
+            let total_cpu_time = user_cpu_time + kernel_cpu_time;
+
+            writeln!(
+                f,
+                "Thread {}    CPU Time: {:.3}s (user: {:.3}s, kernel: {:.3}s)",
+                thread.get_thread_id(),
+                total_cpu_time.as_secs_f64(),
+                user_cpu_time.as_secs_f64(),
+                kernel_cpu_time.as_secs_f64()
+            )?;
             for sample_point in thread.sample_tree_dfs_iter() {
                 let symbol = self.symbol_table.symbol(sample_point.get_address());
 

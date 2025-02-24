@@ -105,6 +105,32 @@ impl Sampler {
         (user_time, kernel_time)
     }
 
+    fn thread_cpu_time(&self, thread_handle: HANDLE) -> (std::time::Duration, std::time::Duration) {
+        let mut creation_time = FILETIME::default();
+        let mut exit_time = FILETIME::default();
+        let mut kernel_time = FILETIME::default();
+        let mut user_time = FILETIME::default();
+
+        _ = unsafe {
+            GetThreadTimes(
+                thread_handle,
+                &mut creation_time,
+                &mut exit_time,
+                &mut kernel_time,
+                &mut user_time,
+            )
+        };
+
+        let user_time = std::time::Duration::from_nanos(
+            ((user_time.dwHighDateTime as u64) << 32) | (user_time.dwLowDateTime as u64),
+        );
+        let kernel_time = std::time::Duration::from_nanos(
+            ((kernel_time.dwHighDateTime as u64) << 32) | (kernel_time.dwLowDateTime as u64),
+        );
+
+        (user_time, kernel_time)
+    }
+
     fn loaded_modules(&self) -> Vec<ModuleInfo> {
         extern "system" fn callback(
             module_name: PCWSTR,
@@ -142,8 +168,12 @@ impl Sampler {
         for thread_handle in self.thread_iter() {
             let thread_id = GetThreadId(thread_handle);
             if let Ok(backtrace) = Backtrace::backtrace(*self.process_handle, thread_handle) {
+                let (user_cpu_time, kernel_cpu_time) = self.thread_cpu_time(thread_handle);
+
                 snapshot.push(RawSample::new(
                     thread_id,
+                    user_cpu_time,
+                    kernel_cpu_time,
                     backtrace.map(|frame| frame.AddrPC.Offset).collect(),
                 ));
             }
@@ -208,7 +238,33 @@ pub fn profile(pid: Pid) -> Result<ProcessSample, Error> {
                 .map(|raw_sample| raw_sample.get_thread_id())
                 .unwrap();
 
-            let mut thread_sample = ThreadSample::new(thread_id);
+            let min_user_cpu_time = raw_thread_samples
+                .iter()
+                .map(RawSample::get_user_cpu_time)
+                .min()
+                .unwrap_or_default();
+            let max_user_cpu_time = raw_thread_samples
+                .iter()
+                .map(RawSample::get_user_cpu_time)
+                .max()
+                .unwrap_or_default();
+
+            let min_kernel_cpu_time = raw_thread_samples
+                .iter()
+                .map(RawSample::get_kernel_cpu_time)
+                .min()
+                .unwrap_or_default();
+            let max_kernel_cpu_time = raw_thread_samples
+                .iter()
+                .map(RawSample::get_kernel_cpu_time)
+                .max()
+                .unwrap_or_default();
+
+            let mut thread_sample = ThreadSample::new(
+                thread_id,
+                min_user_cpu_time.abs_diff(max_user_cpu_time),
+                min_kernel_cpu_time.abs_diff(max_kernel_cpu_time),
+            );
             for raw_sample in raw_thread_samples {
                 thread_sample.add_backtrace(raw_sample.get_backtrace().iter().rev());
             }
