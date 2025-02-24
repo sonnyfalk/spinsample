@@ -1,6 +1,7 @@
 use clap::Parser;
 use std::process::ExitCode;
 
+mod cancel_status;
 mod process_iterator;
 mod sampler;
 mod thread_iterator;

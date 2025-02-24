@@ -6,6 +6,7 @@ use windows::Win32::Foundation::*;
 use windows::Win32::System::Diagnostics::Debug::*;
 use windows::Win32::System::Threading::*;
 
+use super::cancel_status::*;
 use super::*;
 
 mod backtrace;
@@ -193,6 +194,9 @@ pub fn profile(pid: Pid) -> Result<ProcessSample, Error> {
     let sampler = Sampler::attach(pid)?;
     let exe_file = sampler.exe();
 
+    let cancel_status = CancelStatus::new();
+    cancel_status.activate_ctrl_c_handler();
+
     println!(
         "Sampling process: {} - {}",
         pid,
@@ -207,6 +211,10 @@ pub fn profile(pid: Pid) -> Result<ProcessSample, Error> {
 
     // Take backtrace snapshots of all threads in the specified process every 10ms.
     let mut raw_samples = (0..500).fold(Vec::new(), |mut raw_samples, _| {
+        if cancel_status.is_canceled() {
+            return raw_samples;
+        }
+
         if let Ok(mut snapshot) = unsafe { sampler.snapshot_threads() } {
             raw_samples.append(&mut snapshot);
         }
