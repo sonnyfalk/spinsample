@@ -3,7 +3,10 @@ use std::process::ExitCode;
 
 mod process_iterator;
 mod sampler;
+mod thread_iterator;
+
 pub use sampler::Pid;
+pub use thread_iterator::*;
 
 #[derive(Parser, Debug)]
 struct Options {

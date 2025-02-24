@@ -4,9 +4,11 @@ use std::path::PathBuf;
 use windows::core::{Owned, PCWSTR, PWSTR};
 use windows::Win32::Foundation::*;
 use windows::Win32::System::Diagnostics::Debug::*;
-use windows::Win32::System::SystemInformation::IMAGE_FILE_MACHINE_AMD64;
 use windows::Win32::System::Threading::*;
 
+use super::*;
+
+mod backtrace;
 mod error;
 mod module_info;
 mod process_info;
@@ -14,16 +16,20 @@ mod process_sample;
 mod raw_sample;
 mod sample_point;
 mod symbol_table;
+mod symbolicator;
 mod thread_sample;
 
 pub use error::Error;
 pub use module_info::ModuleInfo;
 pub use process_info::ProcessInfo;
 pub use process_sample::ProcessSample;
-use raw_sample::RawSample;
 pub use sample_point::SamplePoint;
 pub use symbol_table::{SymbolInfo, SymbolTable};
+pub use symbolicator::Symbolicator;
 pub use thread_sample::ThreadSample;
+
+use backtrace::Backtrace;
+use raw_sample::RawSample;
 
 pub type Pid = u32;
 pub type Tid = u32;
@@ -140,8 +146,6 @@ impl Sampler {
                     thread_id,
                     backtrace.map(|frame| frame.AddrPC.Offset).collect(),
                 ));
-            } else {
-                println!("Error capturing backtrace for {}", thread_id);
             }
         }
 
@@ -151,192 +155,6 @@ impl Sampler {
     unsafe fn thread_iter(&self) -> impl Iterator<Item = HANDLE> {
         ThreadIterator::new(*self.process_handle)
     }
-}
-
-struct ThreadIterator {
-    process_handle: HANDLE,
-    current: Owned<HANDLE>,
-}
-
-impl ThreadIterator {
-    fn new(process_handle: HANDLE) -> Self {
-        Self {
-            process_handle,
-            current: Owned::default(),
-        }
-    }
-}
-
-impl Iterator for ThreadIterator {
-    type Item = HANDLE;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        unsafe {
-            let mut new_thread = HANDLE::default();
-            if NtGetNextThread(
-                self.process_handle,
-                *self.current,
-                0x2000000,
-                0,
-                0,
-                &mut new_thread,
-            ) == NTSTATUS(0)
-            {
-                self.current = Owned::new(new_thread);
-                Some(*self.current)
-            } else {
-                None
-            }
-        }
-    }
-}
-
-struct Backtrace {
-    process_handle: HANDLE,
-    thread_handle: HANDLE,
-    current_frame: STACKFRAME64,
-    current_context: CONTEXT,
-}
-
-impl Backtrace {
-    fn backtrace(process_handle: HANDLE, thread_handle: HANDLE) -> Result<Self, Error> {
-        let mut current_frame = STACKFRAME64::default();
-        let mut current_context = CONTEXT::default();
-        current_context.ContextFlags = CONTEXT_FULL_AMD64;
-
-        unsafe {
-            SuspendThread(thread_handle);
-            GetThreadContext(thread_handle, &mut current_context).map_err(|e| {
-                ResumeThread(thread_handle);
-                Error::BacktraceFailed(e)
-            })?;
-        };
-
-        current_frame.AddrStack.Offset = current_context.Rsp;
-        current_frame.AddrStack.Mode = AddrModeFlat;
-        current_frame.AddrFrame.Offset = current_context.Rbp;
-        current_frame.AddrFrame.Mode = AddrModeFlat;
-        current_frame.AddrPC.Offset = current_context.Rip;
-        current_frame.AddrPC.Mode = AddrModeFlat;
-
-        Ok(Self {
-            process_handle,
-            thread_handle,
-            current_frame,
-            current_context,
-        })
-    }
-}
-
-impl Drop for Backtrace {
-    fn drop(&mut self) {
-        unsafe {
-            ResumeThread(self.thread_handle);
-        }
-    }
-}
-
-impl Iterator for Backtrace {
-    type Item = STACKFRAME64;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        unsafe {
-            if StackWalk64(
-                IMAGE_FILE_MACHINE_AMD64.0 as u32,
-                self.process_handle,
-                self.thread_handle,
-                &mut self.current_frame,
-                &raw mut self.current_context as *mut c_void,
-                None,
-                None,
-                None,
-                None,
-            ) == TRUE
-            {
-                Some(self.current_frame)
-            } else {
-                None
-            }
-        }
-    }
-}
-
-pub struct Symbolicator {
-    process_handle: HANDLE,
-}
-
-pub struct SymbolicatedFrame {
-    pub function: Option<String>,
-    pub module: Option<String>,
-}
-
-impl Symbolicator {
-    fn new(process_handle: HANDLE) -> Result<Self, Error> {
-        unsafe {
-            SymInitializeW(process_handle, PCWSTR::null(), true)
-                .map_err(|e| Error::SymInitializeFailed(e))?
-        };
-        Ok(Self { process_handle })
-    }
-
-    pub fn symbolicate(&self, address: u64) -> SymbolicatedFrame {
-        let function = unsafe {
-            let mut displacement: u64 = 0;
-            let mut symbol_info = SYMBOL_INFO_PACKAGEW::default();
-            symbol_info.si.SizeOfStruct = size_of::<SYMBOL_INFOW>() as u32;
-            symbol_info.si.MaxNameLen = MAX_SYM_NAME;
-
-            if SymFromAddrW(
-                self.process_handle,
-                address,
-                Some(&mut displacement),
-                &mut symbol_info.si,
-            )
-            .is_ok()
-            {
-                PCWSTR::from_raw(symbol_info.si.Name.as_ptr())
-                    .to_string()
-                    .ok()
-            } else {
-                None
-            }
-        };
-
-        let module = unsafe {
-            let mut module_info = IMAGEHLP_MODULEW64::default();
-            module_info.SizeOfStruct = size_of::<IMAGEHLP_MODULEW64>() as u32;
-
-            if SymGetModuleInfoW64(self.process_handle, address, &mut module_info).is_ok() {
-                PCWSTR::from_raw(module_info.ModuleName.as_ptr())
-                    .to_string()
-                    .ok()
-            } else {
-                None
-            }
-        };
-
-        SymbolicatedFrame { function, module }
-    }
-}
-
-impl Drop for Symbolicator {
-    fn drop(&mut self) {
-        unsafe {
-            _ = SymCleanup(self.process_handle);
-        }
-    }
-}
-
-#[link(name = "ntdll")]
-extern "system" {
-    fn NtGetNextThread(
-        process: HANDLE,
-        thread: HANDLE,
-        access: u32,
-        attributes: u32,
-        flags: u32,
-        new_thread: *mut HANDLE,
-    ) -> NTSTATUS;
 }
 
 /// Sample all the threads of the specified process every 10ms.
