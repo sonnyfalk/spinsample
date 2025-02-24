@@ -1,5 +1,6 @@
 use std::ffi::*;
 use std::path::PathBuf;
+use std::time::Duration;
 
 use windows::core::{Owned, PCWSTR, PWSTR};
 use windows::Win32::Foundation::*;
@@ -188,9 +189,8 @@ impl Sampler {
     }
 }
 
-/// Sample all the threads of the specified process every 10ms.
-/// It currently takes up to 500 samples before returning.  
-pub fn profile(pid: Pid) -> Result<ProcessSample, Error> {
+/// Sample all the threads of the specified process at the specified interval.
+pub fn profile(pid: Pid, duration: Duration, interval: Duration) -> Result<ProcessSample, Error> {
     let sampler = Sampler::attach(pid)?;
     let exe_file = sampler.exe();
 
@@ -198,29 +198,37 @@ pub fn profile(pid: Pid) -> Result<ProcessSample, Error> {
     cancel_status.activate_ctrl_c_handler();
 
     println!(
-        "Sampling process: {} - {}",
+        "Sampling process: {} - {} for {} {} with {} millisecond interval",
         pid,
         exe_file
             .as_ref()
             .map(|p| p.to_str())
             .flatten()
-            .unwrap_or("{unknown}")
+            .unwrap_or("{unknown}"),
+        duration.as_secs(),
+        match duration.as_secs() {
+            1 => "second",
+            _ => "seconds",
+        },
+        interval.as_millis()
     );
 
     let (before_user_time, before_kernel_time) = sampler.process_cpu_time();
 
-    // Take backtrace snapshots of all threads in the specified process every 10ms.
-    let mut raw_samples = (0..500).fold(Vec::new(), |mut raw_samples, _| {
+    // Take backtrace snapshots of all threads in the specified process.
+    let start_time = std::time::Instant::now();
+    let mut raw_samples = Vec::new();
+    while start_time.elapsed() < duration {
         if cancel_status.is_canceled() {
-            return raw_samples;
+            println!("^C [interrupted]");
+            break;
         }
-
-        if let Ok(mut snapshot) = unsafe { sampler.snapshot_threads() } {
-            raw_samples.append(&mut snapshot);
-        }
-        std::thread::sleep(std::time::Duration::from_millis(10));
-        raw_samples
-    });
+        run_and_yield_for_duration(interval, || {
+            if let Ok(mut snapshot) = unsafe { sampler.snapshot_threads() } {
+                raw_samples.append(&mut snapshot);
+            }
+        });
+    }
 
     let (after_user_time, after_kernel_time) = sampler.process_cpu_time();
 
@@ -295,4 +303,16 @@ pub fn profile(pid: Pid) -> Result<ProcessSample, Error> {
         threads,
         symbol_table,
     ))
+}
+
+fn run_and_yield_for_duration<F: FnMut()>(duration: Duration, mut f: F) {
+    let start = std::time::Instant::now();
+    f();
+    if duration > Duration::from_millis(20) {
+        std::thread::sleep(duration);
+    } else {
+        while start.elapsed() < duration {
+            std::thread::yield_now();
+        }
+    }
 }

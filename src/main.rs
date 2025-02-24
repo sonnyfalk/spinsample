@@ -1,5 +1,6 @@
 use clap::Parser;
 use std::process::ExitCode;
+use std::time::Duration;
 
 mod cancel_status;
 mod process_iterator;
@@ -13,6 +14,10 @@ pub use thread_iterator::*;
 struct Options {
     /// The process pid or name to sample
     process: String,
+    /// Duration in seconds, default is 10
+    duration: Option<u64>,
+    /// Sampling interval in milliseconds, default is 1
+    interval: Option<u64>,
 }
 
 fn main() -> ExitCode {
@@ -25,7 +30,11 @@ fn main() -> ExitCode {
         return ExitCode::FAILURE;
     };
 
-    match sampler::profile(pid) {
+    match sampler::profile(
+        pid,
+        Duration::from_secs(options.duration.unwrap_or(10)),
+        Duration::from_millis(options.interval.unwrap_or(1)),
+    ) {
         Ok(process_sample) => {
             println!("{}", process_sample);
             ExitCode::SUCCESS
