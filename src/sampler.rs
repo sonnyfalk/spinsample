@@ -37,7 +37,6 @@ pub type Pid = u32;
 pub type Tid = u32;
 
 struct Sampler {
-    symbolicator: Symbolicator,
     process_handle: Owned<HANDLE>,
 }
 
@@ -53,12 +52,8 @@ impl Sampler {
                 .map_err(|e| Error::AttachProcessFailed(e))?,
             )
         };
-        let symbolicator = Symbolicator::new(*process_handle)?;
 
-        Ok(Sampler {
-            symbolicator,
-            process_handle,
-        })
+        Ok(Sampler { process_handle })
     }
 
     fn exe(&self) -> Option<PathBuf> {
@@ -192,6 +187,9 @@ impl Sampler {
 /// Sample all the threads of the specified process at the specified interval.
 pub fn profile(pid: Pid, duration: Duration, interval: Duration) -> Result<ProcessSample, Error> {
     let sampler = Sampler::attach(pid)?;
+
+    let symbolicator = Symbolicator::new(*sampler.process_handle)?;
+
     let exe_file = sampler.exe();
 
     let cancel_status = CancelStatus::new();
@@ -237,7 +235,7 @@ pub fn profile(pid: Pid, duration: Duration, interval: Duration) -> Result<Proce
         raw_samples
             .iter()
             .fold(SymbolTable::new(), |mut symbol_table, raw_sample| {
-                symbol_table.symbolicate(raw_sample.get_backtrace(), &sampler.symbolicator);
+                symbol_table.symbolicate(raw_sample.get_backtrace(), &symbolicator);
                 symbol_table
             });
 
