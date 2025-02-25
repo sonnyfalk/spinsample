@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::ffi::*;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -188,7 +189,9 @@ impl Sampler {
 pub fn profile(pid: Pid, duration: Duration, interval: Duration) -> Result<ProcessSample, Error> {
     let sampler = Sampler::attach(pid)?;
 
-    let symbolicator = Symbolicator::new(*sampler.process_handle)?;
+    let modules = sampler.loaded_modules();
+    let search_path: HashSet<&str> = modules.iter().flat_map(ModuleInfo::module_dir).collect();
+    let symbolicator = Symbolicator::new(*sampler.process_handle, &Vec::from_iter(search_path))?;
 
     let exe_file = sampler.exe();
 
@@ -285,8 +288,6 @@ pub fn profile(pid: Pid, duration: Duration, interval: Duration) -> Result<Proce
             thread_sample
         })
         .collect();
-
-    let modules = sampler.loaded_modules();
 
     println!();
 

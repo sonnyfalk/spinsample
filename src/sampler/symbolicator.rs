@@ -10,9 +10,11 @@ pub struct SymbolicatedFrame {
 }
 
 impl Symbolicator {
-    pub fn new(process_handle: HANDLE) -> Result<Self, Error> {
+    pub fn new(process_handle: HANDLE, search_path: &[&str]) -> Result<Self, Error> {
         unsafe {
-            SymInitializeW(process_handle, PCWSTR::null(), true)
+            let mut path_string: Vec<u16> = search_path.join(";").encode_utf16().collect();
+            path_string.push(0);
+            SymInitializeW(process_handle, PCWSTR::from_raw(path_string.as_ptr()), true)
                 .map_err(|e| Error::SymInitializeFailed(e))?
         };
         Ok(Self { process_handle })

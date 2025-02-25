@@ -24,6 +24,10 @@ impl ModuleInfo {
         self.path.to_str()
     }
 
+    pub fn module_dir(&self) -> Option<&str> {
+        self.path.parent()?.to_str()
+    }
+
     pub fn address_range(&self) -> std::ops::Range<u64> {
         self.base_address..(self.base_address + self.size as u64)
     }
