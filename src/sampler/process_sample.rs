@@ -2,7 +2,7 @@ use super::*;
 
 #[derive(Debug)]
 pub struct ProcessSample {
-    process_info: ProcessInfo,
+    pub process_info: ProcessInfo,
     threads: Vec<ThreadSample>,
     symbol_table: SymbolTable,
 }

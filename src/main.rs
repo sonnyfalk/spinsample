@@ -1,6 +1,10 @@
-use clap::Parser;
+use std::io::Write;
+use std::path::PathBuf;
 use std::process::ExitCode;
 use std::time::Duration;
+
+use clap::Parser;
+use windows::Win32::System::SystemInformation::GetLocalTime;
 
 mod cancel_status;
 mod process_iterator;
@@ -36,6 +40,9 @@ fn main() -> ExitCode {
         Duration::from_millis(options.interval.unwrap_or(1)),
     ) {
         Ok(process_sample) => {
+            if let Ok(file_path) = output_to_tmp_file(&process_sample) {
+                println!("Sample analysis written to file {}\n", file_path.display());
+            }
             println!("{}", process_sample);
             ExitCode::SUCCESS
         }
@@ -55,4 +62,38 @@ fn pid_for_name(name: &str) -> Option<Pid> {
 
     // TODO: Filter down further and let the user pick one if there are multiple matches.
     Some(matches.first()?.1)
+}
+
+fn output_to_tmp_file(process_sample: &sampler::ProcessSample) -> std::io::Result<PathBuf> {
+    let file_path = output_file_path(process_sample);
+    let mut tmp_file = std::fs::File::create_new(&file_path)?;
+    write!(tmp_file, "{}", process_sample)?;
+
+    Ok(file_path)
+}
+
+fn output_file_path(process_sample: &sampler::ProcessSample) -> PathBuf {
+    let name = process_sample
+        .process_info
+        .path
+        .file_stem()
+        .and_then(std::ffi::OsStr::to_str)
+        .map(str::to_string)
+        .unwrap_or(process_sample.process_info.pid.to_string());
+
+    let date_time = unsafe { GetLocalTime() };
+
+    let mut tmp_file = std::env::temp_dir();
+    tmp_file.push(format!(
+        "{}_{:04}-{:02}-{:02}_{:02}{:02}{:02}.spinsample.txt",
+        name,
+        date_time.wYear,
+        date_time.wMonth,
+        date_time.wDay,
+        date_time.wHour,
+        date_time.wMinute,
+        date_time.wSecond
+    ));
+
+    tmp_file
 }
