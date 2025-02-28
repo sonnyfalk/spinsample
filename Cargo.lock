@@ -188,6 +188,7 @@ dependencies = [
  "ctrlc",
  "tree_iterators_rs",
  "windows",
+ "windows-strings",
 ]
 
 [[package]]

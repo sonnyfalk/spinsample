@@ -13,8 +13,10 @@ mod thread_iterator;
 
 pub use sampler::Pid;
 pub use thread_iterator::*;
+use windows::Win32::UI::Shell::ShellExecuteW;
 
 #[derive(Parser, Debug)]
+#[command(override_usage = "spinsample <PROCESS> [DURATION] [INTERVAL] [Options]")]
 struct Options {
     /// The process pid or name to sample
     process: String,
@@ -22,6 +24,9 @@ struct Options {
     duration: Option<u64>,
     /// Sampling interval in milliseconds, default is 1
     interval: Option<u64>,
+    /// Open the output file using the optionally specified editor
+    #[arg(short = 'e', long = "edit")]
+    edit: Option<Option<String>>,
 }
 
 fn main() -> ExitCode {
@@ -40,10 +45,21 @@ fn main() -> ExitCode {
         Duration::from_millis(options.interval.unwrap_or(1)),
     ) {
         Ok(process_sample) => {
+            let mut should_output = true;
             if let Ok(file_path) = output_to_tmp_file(&process_sample) {
                 println!("Sample analysis written to file {}\n", file_path.display());
+                if let Some(edit) = options.edit {
+                    if open_editor(file_path, edit)
+                        .map_err(|e| println!("Unable to open editor: {e}"))
+                        .is_ok()
+                    {
+                        should_output = false;
+                    }
+                }
             }
-            println!("{}", process_sample);
+            if should_output {
+                println!("{}", process_sample);
+            }
             ExitCode::SUCCESS
         }
         Err(error) => {
@@ -96,4 +112,34 @@ fn output_file_path(process_sample: &sampler::ProcessSample) -> PathBuf {
     ));
 
     tmp_file
+}
+
+fn open_editor(file: PathBuf, editor: Option<String>) -> windows::core::Result<()> {
+    let result = unsafe {
+        if let Some(editor) = editor {
+            ShellExecuteW(
+                None,
+                &windows_strings::HSTRING::from("OPEN"),
+                &windows_strings::HSTRING::from(editor),
+                &windows_strings::HSTRING::from(file.as_path()),
+                None,
+                windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL,
+            )
+        } else {
+            ShellExecuteW(
+                None,
+                &windows_strings::HSTRING::from("OPEN"),
+                &windows_strings::HSTRING::from(file.as_path()),
+                None,
+                None,
+                windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL,
+            )
+        }
+    };
+
+    if result.0 as usize > 32 {
+        Ok(())
+    } else {
+        Err(windows::core::Error::from_win32())
+    }
 }
