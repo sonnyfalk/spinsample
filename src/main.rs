@@ -24,6 +24,9 @@ struct Options {
     duration: Option<u64>,
     /// Sampling interval in milliseconds, default is 1
     interval: Option<u64>,
+    /// Wait until the specified process exists, then start sampling
+    #[arg(short = 'w', long = "wait")]
+    wait: bool,
     /// Open the output file using the optionally specified editor
     #[arg(short = 'e', long = "edit")]
     edit: Option<Option<String>>,
@@ -33,7 +36,7 @@ fn main() -> ExitCode {
     let options = Options::parse();
     let Some(pid) = Pid::from_str_radix(&options.process, 10)
         .ok()
-        .or_else(|| pid_for_name(&options.process))
+        .or_else(|| pid_for_name(&options.process, options.wait))
     else {
         eprintln!("No such process - {}", options.process);
         return ExitCode::FAILURE;
@@ -69,12 +72,24 @@ fn main() -> ExitCode {
     }
 }
 
-fn pid_for_name(name: &str) -> Option<Pid> {
-    let processes = process_iterator::ProcessIterator::snapshot()?;
+fn pid_for_name(name: &str, wait: bool) -> Option<Pid> {
+    let mut is_waiting = false;
+    let matches = loop {
+        let processes = process_iterator::ProcessIterator::snapshot()?;
 
-    let matches: Vec<(String, Pid)> = processes
-        .filter(|(process_name, _)| process_name.contains(name))
-        .collect();
+        let matches: Vec<(String, Pid)> = processes
+            .filter(|(process_name, _)| process_name.contains(name))
+            .collect();
+        if matches.is_empty() && wait {
+            if !is_waiting {
+                println!("Waiting for '{name}' to appear...");
+                is_waiting = true;
+            }
+            std::thread::sleep(Duration::from_millis(500));
+        } else {
+            break matches;
+        }
+    };
 
     // TODO: Filter down further and let the user pick one if there are multiple matches.
     Some(matches.first()?.1)
